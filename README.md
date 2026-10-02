@@ -92,7 +92,3 @@ Open http://localhost:3000, pick a stop, and the page shows live arrivals in an 
 
 Transit data is published by Whatcom Transportation Authority. See WTA's GTFS page for the data license and terms.
 This project is not affiliated with or endorsed by WTA.
-
-## License
-
-MIT, see [LICENSE](LICENSE). Replace `<your name>` in the license file.
