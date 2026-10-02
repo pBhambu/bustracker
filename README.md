@@ -7,6 +7,8 @@ A desk-sized bus arrival display for **Whatcom Transportation Authority (WTA) Ro
 An ESP32 reads WTA's live bus data over Wi-Fi and shows how long until the next bus reaches your stop on a
 retro 128x64 OLED. A 15-LED progress bar (on the custom PCB) shows the countdown at a glance.
 
+<img width="955" height="4095" alt="3D_PCB2_2026-10-01 (2)" src="https://github.com/user-attachments/assets/27c1ecc6-904b-4caf-a28d-fb0394e1cccc" />
+
 ```
 BUS 190
 ARR 4:37PM
