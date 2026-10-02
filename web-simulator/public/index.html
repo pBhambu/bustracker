@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WTA 190 OLED Sim</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b1018;--bezel:#05070a;--amber:#ffd400;--cyan:#19c8ff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);display:flex;justify-content:center;padding:24px 12px;font-family:'VT323',ui-monospace,Menlo,monospace}
+.device{width:100%;max-width:560px;background:var(--bezel);border:3px solid #1d2a3a;border-radius:18px;padding:22px}
+.screen{position:relative;background:#000;border:1px solid #111a24;padding:18px 20px;min-height:300px;overflow:hidden}
+.screen::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.04) 0 1px,transparent 1px 3px)}
+.top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1c2733;padding-bottom:10px}
+.title{color:var(--amber);font-size:30px;text-shadow:0 0 6px rgba(255,212,0,.6);letter-spacing:1px}
+.title i{color:#665600;font-style:normal;margin:0 8px}
+.clock{color:var(--amber);font-size:24px;text-shadow:0 0 6px rgba(255,212,0,.5)}
+.row{display:flex;justify-content:space-between;align-items:center;color:var(--cyan);text-shadow:0 0 6px rgba(25,200,255,.6);padding:10px 0;border-bottom:1px solid #121b25;font-size:22px}
+.badge{font-size:18px;padding:0 8px;border-radius:3px;background:rgba(25,200,255,.15)}
+.badge.live{color:#3dff8a;background:rgba(61,255,138,.15);text-shadow:0 0 6px #3dff8a}
+.big{display:flex;align-items:baseline;justify-content:center;gap:10px;margin:18px 0 8px;color:var(--amber);text-shadow:0 0 12px rgba(255,212,0,.7)}
+.big b{font-weight:400;font-size:110px;line-height:1}
+.big span{font-size:34px}
+.next{text-align:center;color:var(--cyan);font-size:24px;text-shadow:0 0 6px rgba(25,200,255,.6)}
+.foot{position:absolute;left:20px;bottom:10px;color:var(--cyan);font-size:18px;opacity:.8}
+.ctl{max-width:560px;width:100%;margin:16px auto 0;color:#8fa3b8;font:14px system-ui,sans-serif}
+.ctl input{width:100%;box-sizing:border-box;background:#0e1520;color:#dfe9f5;border:1px solid #233246;border-radius:6px;padding:8px;margin:4px 0 10px}
+.ctl button{background:#1d2a3a;color:#dfe9f5;border:0;border-radius:6px;padding:8px 14px;cursor:pointer}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#dfe6ee}.ctl{color:#3a4a5c}}
+</style></head>
+<body>
+<div style="width:100%;max-width:560px">
+<div class="device"><div class="screen">
+  <div class="top"><div class="title">🚌 WTA 190<i>|</i>STOP <span id="stop">----</span></div><div class="clock" id="clock">--:--</div></div>
+  <div class="row"><span id="stopname">Pick a stop below</span><span class="badge" id="badge">SCHED</span></div>
+  <div class="big"><b id="mins">--</b><span id="unit">MIN</span></div>
+  <div class="next" id="next">&nbsp;</div>
+  <div class="foot" id="foot">--:--</div>
+</div></div>
+
+<div class="ctl">
+  <label>Filter stops on route 190</label>
+  <input id="filter" value="highland">
+  <select id="sel" style="width:100%;background:#0e1520;color:#dfe9f5;border:1px solid #233246;border-radius:6px;padding:8px"></select>
+  <p id="status">Loading stops…</p>
+</div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+let CFG={stop:"",name:""}, arrivals=[], fetchedAt=Date.now(), allStops=[];
+try{CFG=JSON.parse(localStorage.getItem("wtaStop"))||CFG}catch(e){}
+function renderSel(){
+  const f=$("filter").value.toLowerCase();
+  const list=allStops.filter(s=>(s.name+" "+s.code+" "+s.id).toLowerCase().includes(f)).slice(0,100);
+  $("sel").innerHTML=list.map(s=>`<option value="${s.id}" data-code="${s.code}">${s.name} (${s.code||s.id})</option>`).join("");
+  if(CFG.stop&&list.some(s=>s.id===CFG.stop)) $("sel").value=CFG.stop;
+  else if(list[0]&&!CFG.stop) pick();
+}
+function pick(){
+  const o=$("sel").selectedOptions[0]; if(!o) return;
+  CFG={stop:o.value,name:o.textContent,code:o.dataset.code};
+  try{localStorage.setItem("wtaStop",JSON.stringify(CFG))}catch(e){}
+  arrivals=[]; load();
+}
+async function load(){
+  if(!CFG.stop) return;
+  try{
+    const r=await fetch("/arrivals?stop="+encodeURIComponent(CFG.stop));
+    if(!r.ok) throw new Error(r.status);
+    arrivals=(await r.json()).arrivals; fetchedAt=Date.now();
+    $("status").textContent="Live data updated "+new Date().toLocaleTimeString();
+  }catch(e){ arrivals=null; $("status").textContent="Could not reach /arrivals – is server.js running?"; }
+  draw();
+}
+function draw(){
+  $("clock").textContent=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",hour12:false});
+  $("stop").textContent=CFG.code||CFG.stop||"----";
+  $("stopname").textContent=CFG.name||"Pick a stop below";
+  if(arrivals===null){$("mins").textContent="--";$("unit").textContent="";$("next").textContent="NO DATA";$("badge").textContent="ERR";$("badge").classList.remove("live");return;}
+  const el=(Date.now()-fetchedAt)/60000;
+  const l=arrivals.map(a=>({...a,m:Math.max(0,Math.round(a.minutes-el))}));
+  if(!l.length){$("mins").textContent="--";$("unit").textContent="";$("next").textContent="NO BUSES";$("foot").textContent="--:--";return;}
+  const a=l[0];
+  $("mins").textContent=a.m===0?"DUE":a.m; $("unit").textContent=a.m===0?"":"MIN";
+  $("badge").textContent=a.realtime?"LIVE":"SCHED"; $("badge").classList.toggle("live",!!a.realtime);
+  $("next").textContent=l[1]?"NEXT: "+l[1].m+" MIN":"";
+  $("foot").textContent="ARR "+new Date(Date.now()+a.m*60000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",hour12:false});
+}
+$("filter").oninput=renderSel; $("sel").onchange=pick;
+fetch("/stops").then(r=>r.json()).then(s=>{allStops=s;$("status").textContent=s.length+" stops loaded";renderSel();load();})
+  .catch(()=>{$("status").textContent="Could not reach /stops – start server.js first"});
+setInterval(draw,1000); setInterval(load,15000); draw();
+</script>
+</body></html>
